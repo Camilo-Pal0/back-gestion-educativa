@@ -2,6 +2,7 @@ package com.sistema.educativo.controller;
 
 import com.sistema.educativo.dto.CrearGrupoDTO;
 import com.sistema.educativo.dto.GrupoDTO;
+import com.sistema.educativo.dto.UsuarioDTO;
 import com.sistema.educativo.service.GrupoService;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -98,5 +99,51 @@ public class GrupoController {
             error.put("mensaje", e.getMessage());
             return ResponseEntity.badRequest().body(error);
         }
+    }
+
+    // Inscribir estudiante en grupo
+    @PostMapping("/{grupoId}/estudiantes/{estudianteId}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<?> inscribirEstudiante(@PathVariable Long grupoId, @PathVariable Long estudianteId) {
+        try {
+            grupoService.inscribirEstudiante(grupoId, estudianteId);
+            Map<String, String> response = new HashMap<>();
+            response.put("mensaje", "Estudiante inscrito correctamente");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("mensaje", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // Desinscribir estudiante de grupo
+    @DeleteMapping("/{grupoId}/estudiantes/{estudianteId}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<?> desinscribirEstudiante(@PathVariable Long grupoId, @PathVariable Long estudianteId) {
+        try {
+            grupoService.desinscribirEstudiante(grupoId, estudianteId);
+            Map<String, String> response = new HashMap<>();
+            response.put("mensaje", "Estudiante desinscrito correctamente");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("mensaje", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    // Obtener estudiantes de un grupo
+    @GetMapping("/{grupoId}/estudiantes")
+    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('PROFESOR')")
+    public ResponseEntity<List<UsuarioDTO>> obtenerEstudiantesDelGrupo(@PathVariable Long grupoId) {
+        return ResponseEntity.ok(grupoService.obtenerEstudiantesDelGrupo(grupoId));
+    }
+
+    // Obtener estudiantes disponibles para inscribir
+    @GetMapping("/{grupoId}/estudiantes/disponibles")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<List<UsuarioDTO>> obtenerEstudiantesDisponibles(@PathVariable Long grupoId) {
+        return ResponseEntity.ok(grupoService.obtenerEstudiantesDisponibles(grupoId));
     }
 }

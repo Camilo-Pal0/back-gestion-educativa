@@ -5,6 +5,7 @@ import com.sistema.educativo.dto.GrupoDTO;
 import com.sistema.educativo.dto.UsuarioDTO;
 import com.sistema.educativo.entity.Grupo;
 import com.sistema.educativo.entity.ProfesorGrupo;
+import com.sistema.educativo.entity.EstudianteGrupo;
 import com.sistema.educativo.entity.Usuario;
 import com.sistema.educativo.repository.GrupoRepository;
 import com.sistema.educativo.repository.UsuarioRepository;
@@ -154,6 +155,97 @@ public class GrupoService {
         ProfesorGrupo pg = new ProfesorGrupo(profesor, grupo);
         grupo.getProfesoresGrupos().add(pg);
         grupoRepository.save(grupo);
+    }
+
+    // Inscribir estudiante en grupo
+    public void inscribirEstudiante(Long grupoId, Long estudianteId) {
+        Grupo grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+
+        Usuario estudiante = usuarioRepository.findById(estudianteId)
+                .orElseThrow(() -> new RuntimeException("Estudiante no encontrado"));
+
+        if (!estudiante.getTipoUsuario().equals(Usuario.TipoUsuario.ESTUDIANTE)) {
+            throw new RuntimeException("El usuario no es un estudiante");
+        }
+
+        // Verificar cupo
+        Integer inscritos = grupoRepository.countEstudiantesActivos(grupoId);
+        if (inscritos >= grupo.getCupoMaximo()) {
+            throw new RuntimeException("El grupo ha alcanzado su cupo máximo");
+        }
+
+        // Verificar si ya está inscrito
+        boolean yaInscrito = grupo.getEstudiantesGrupos().stream()
+                .anyMatch(eg -> eg.getEstudiante().getId().equals(estudianteId) && eg.getActivo());
+
+        if (yaInscrito) {
+            throw new RuntimeException("El estudiante ya está inscrito en este grupo");
+        }
+
+        EstudianteGrupo eg = new EstudianteGrupo(estudiante, grupo);
+        grupo.getEstudiantesGrupos().add(eg);
+        grupoRepository.save(grupo);
+    }
+
+    // Desinscribir estudiante de grupo
+    public void desinscribirEstudiante(Long grupoId, Long estudianteId) {
+        Grupo grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+
+        EstudianteGrupo estudianteGrupo = grupo.getEstudiantesGrupos().stream()
+                .filter(eg -> eg.getEstudiante().getId().equals(estudianteId) && eg.getActivo())
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("El estudiante no está inscrito en este grupo"));
+
+        estudianteGrupo.setActivo(false);
+        grupoRepository.save(grupo);
+    }
+
+    // Obtener estudiantes de un grupo
+    public List<UsuarioDTO> obtenerEstudiantesDelGrupo(Long grupoId) {
+        Grupo grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+
+        return grupo.getEstudiantesGrupos().stream()
+                .filter(EstudianteGrupo::getActivo)
+                .map(eg -> {
+                    Usuario estudiante = eg.getEstudiante();
+                    UsuarioDTO dto = new UsuarioDTO();
+                    dto.setId(estudiante.getId());
+                    dto.setNombreUsuario(estudiante.getNombreUsuario());
+                    dto.setEmail(estudiante.getEmail());
+                    dto.setTelefonoMovil(estudiante.getTelefonoMovil());
+                    dto.setActivo(estudiante.getActivo());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    // Obtener estudiantes disponibles para inscribir
+    public List<UsuarioDTO> obtenerEstudiantesDisponibles(Long grupoId) {
+        Grupo grupo = grupoRepository.findById(grupoId)
+                .orElseThrow(() -> new RuntimeException("Grupo no encontrado"));
+
+        // IDs de estudiantes ya inscritos
+        List<Long> inscritosIds = grupo.getEstudiantesGrupos().stream()
+                .filter(EstudianteGrupo::getActivo)
+                .map(eg -> eg.getEstudiante().getId())
+                .collect(Collectors.toList());
+
+        // Obtener todos los estudiantes activos que no están inscritos
+        return usuarioRepository.findAll().stream()
+                .filter(u -> u.getTipoUsuario().equals(Usuario.TipoUsuario.ESTUDIANTE))
+                .filter(Usuario::getActivo)
+                .filter(u -> !inscritosIds.contains(u.getId()))
+                .map(estudiante -> {
+                    UsuarioDTO dto = new UsuarioDTO();
+                    dto.setId(estudiante.getId());
+                    dto.setNombreUsuario(estudiante.getNombreUsuario());
+                    dto.setEmail(estudiante.getEmail());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     // Método auxiliar para convertir entidad a DTO
