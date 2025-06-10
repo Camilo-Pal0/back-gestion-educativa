@@ -11,9 +11,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/asistencias")
@@ -70,5 +72,35 @@ public class AsistenciaController {
     @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('PROFESOR')")
     public ResponseEntity<AsistenciaService.EstadisticasAsistenciaDTO> obtenerEstadisticas(@PathVariable Long grupoId) {
         return ResponseEntity.ok(asistenciaService.obtenerEstadisticas(grupoId));
+    }
+
+    // Obtener historial con filtros
+    @GetMapping("/historial")
+    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('PROFESOR')")
+    public ResponseEntity<List<AsistenciaDTO>> obtenerHistorialFiltrado(
+            @RequestParam(required = false) Long grupoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin,
+            @RequestParam(required = false) String estado) {
+
+        List<AsistenciaDTO> historial;
+
+        if (grupoId != null) {
+            historial = asistenciaService.obtenerHistorialPorGrupo(grupoId);
+        } else {
+            // Si no se especifica grupo, devolver vacío o implementar lógica para todos los grupos
+            return ResponseEntity.ok(new ArrayList<>());
+        }
+
+        // Aplicar filtros adicionales si se proporcionan
+        if (fechaInicio != null || fechaFin != null || estado != null) {
+            historial = historial.stream()
+                    .filter(a -> fechaInicio == null || !a.getFecha().isBefore(fechaInicio))
+                    .filter(a -> fechaFin == null || !a.getFecha().isAfter(fechaFin))
+                    .filter(a -> estado == null || estado.isEmpty() || a.getEstado().equals(estado))
+                    .collect(Collectors.toList());
+        }
+
+        return ResponseEntity.ok(historial);
     }
 }
